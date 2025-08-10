@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
-// Raccoon Rocket — v0.3.b (React canvas)
-// - Radar pings hidden parts
-// - Loss screen shows remaining part locations
-// - Water mechanics with 5s trap and land connectivity
+// Raccoon Rocket — v0.4 (React canvas)
+// - Bottom-level parts visible on gray rock
+// - Sticky Sand slows more
+// - Character selection and changelog
 
 const randi = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 const choice = arr => arr[Math.floor(Math.random() * arr.length)];
@@ -11,6 +11,7 @@ const choice = arr => arr[Math.floor(Math.random() * arr.length)];
 const GRID_W = 18;
 const GRID_H = 14;
 const TOTAL = GRID_W * GRID_H;
+const VERSION = "v0.4";
 
 const PieceIDs = ["nose", "window", "body", "engine", "fin-left", "fin-right"];
 const BonusIDs = ["speed", "score", "radar", "time"];
@@ -66,6 +67,59 @@ function RaccoonIcon({ size = 26 }) {
       <path d="M30 40 L64 20 L98 40" fill="#9ca3af" />
     </svg>
   );
+}
+
+function PandaIcon({ size = 26, red = false }) {
+  const face = red ? "#f97316" : "#fff";
+  const ear = red ? "#c2410c" : "#111";
+  return (
+    <svg width={size} height={size} viewBox="0 0 128 128" aria-label={red ? "red panda" : "panda"}>
+      <circle cx="64" cy="64" r="60" fill={face} stroke="#a8a29e" strokeWidth="4" />
+      <circle cx="44" cy="50" r="20" fill={ear} />
+      <circle cx="84" cy="50" r="20" fill={ear} />
+      <circle cx="64" cy="80" r="30" fill={face} stroke="#a8a29e" strokeWidth="4" />
+      <circle cx="64" cy="88" r="12" fill={ear} />
+    </svg>
+  );
+}
+
+function CharacterIcon({ id, size = 26 }) {
+  switch (id) {
+    case "raccoon-f":
+      return (
+        <div style={{ position: "relative", width: size, height: size }}>
+          <RaccoonIcon size={size} />
+          <svg width={size} height={size} style={{ position: "absolute", top: 0, left: 0 }}>
+            <polygon points="20,20 36,20 28,32" fill="#db2777" />
+          </svg>
+        </div>
+      );
+    case "redpanda-m":
+      return <PandaIcon size={size} red />;
+    case "redpanda-f":
+      return (
+        <div style={{ position: "relative", width: size, height: size }}>
+          <PandaIcon size={size} red />
+          <svg width={size} height={size} style={{ position: "absolute", top: 0, left: 0 }}>
+            <polygon points="20,20 36,20 28,32" fill="#db2777" />
+          </svg>
+        </div>
+      );
+    case "panda-m":
+      return <PandaIcon size={size} />;
+    case "panda-f":
+      return (
+        <div style={{ position: "relative", width: size, height: size }}>
+          <PandaIcon size={size} />
+          <svg width={size} height={size} style={{ position: "absolute", top: 0, left: 0 }}>
+            <polygon points="20,20 36,20 28,32" fill="#db2777" />
+          </svg>
+        </div>
+      );
+    case "raccoon-m":
+    default:
+      return <RaccoonIcon size={size} />;
+  }
 }
 
 function pieceSVGPath(id) {
@@ -127,11 +181,13 @@ export default function App() {
   const [timeLeft, setTimeLeft] = useState(180);
   const [ringReveal, setRingReveal] = useState(false);
   const [speed, setSpeed] = useState(1);
+  const [character, setCharacter] = useState("raccoon-m");
   const [menu, setMenu] = useState("home");
   const [toast, setToast] = useState("");
   const [effect, setEffect] = useState(null); // {type,label}
   const [trap, setTrap] = useState({ active: false, until: 0 });
   const lastMoveRef = useRef(0);
+  const characterOptions = ["raccoon-m", "raccoon-f", "redpanda-m", "redpanda-f", "panda-m", "panda-f"];
 
   // timer
   useEffect(() => {
@@ -212,9 +268,9 @@ export default function App() {
   }
   function handlePenalty(id) {
     if (id === "slow") {
-      setSpeed(v => Math.max(0.6, v - 0.3));
-      setScore(s => Math.max(0, s - 20));
-      playEffect("shake", "Sticky Sand");
+      setSpeed(v => Math.max(0.4, v - 0.5));
+      setScore(s => Math.max(0, s - 40));
+      playEffect("shake", "Sticky Sand!");
     } else if (id === "oops") {
       setScore(s => Math.max(0, s - 80));
       playEffect("shake", "Oops! -80");
@@ -410,10 +466,11 @@ export default function App() {
 
       <header style={styles.header}>
         <div className="row">
-          <RaccoonIcon />
+          <CharacterIcon id={character} />
           <div style={{ marginLeft: 8 }}>
             <h1 style={{ margin: 0, fontSize: 24 }}>Raccoon Rocket</h1>
             <div style={{ fontSize: 12, color: "#64748b" }}>Dig. Discover. Build your ship.</div>
+            <div style={{ fontSize: 10, color: "#94a3b8" }}>{VERSION}</div>
           </div>
         </div>
         <div className="row">
@@ -450,10 +507,16 @@ export default function App() {
                     ringReveal && Math.abs(x - pos.x) <= 2 && Math.abs(y - pos.y) <= 2 ? "radar" : "",
                   ].join(" ");
                   const showPing = ringReveal && nearbyRing.has(i) && c?.payload?.kind === "piece";
+                  const showPiece = c?.payload?.kind === "piece" && (c.layers ?? 0) === 0;
                   return (
                     <div key={i} className={classes}>
                       {c.type !== "water" ? <div className="grain" /> : null}
-                      {isPlayer ? <RaccoonIcon size={26} /> : null}
+                      {showPiece ? (
+                        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <PieceSVG id={c.payload.id} size={24} />
+                        </div>
+                      ) : null}
+                      {isPlayer ? <CharacterIcon id={character} size={26} /> : null}
                       {showPing ? (
                         <div className="ping" title="Piece nearby!">
                           <div className="pingDot" />
@@ -518,9 +581,20 @@ export default function App() {
               <>
                 <h2 style={{ marginTop: 0 }}>Raccoon Rocket</h2>
                 <div style={{ color: "#5b6b7a", fontSize: 14 }}>A cozy dig-and-build game.</div>
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ marginBottom: 6, fontSize: 12, color: "#5b6b7a" }}>Choose your character:</div>
+                  <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>
+                    {characterOptions.map(opt => (
+                      <button key={opt} onClick={() => setCharacter(opt)} style={{ border: "2px solid", borderColor: character === opt ? "#10b981" : "transparent", borderRadius: 12, padding: 4, background: "transparent" }} aria-label={opt}>
+                        <CharacterIcon id={opt} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <div className="row" style={{ marginTop: 12 }}>
                   <button style={{ ...styles.btn, background: "#10b981" }} onClick={() => setMenu("playing")}>Start Game</button>
                   <button style={{ ...styles.btn, background: "#0f172a" }} onClick={() => setMenu("help")}>How to Play</button>
+                  <button style={{ ...styles.btn, background: "#4b5563" }} onClick={() => setMenu("changelog")}>Change Log</button>
                 </div>
               </>
             )}
@@ -539,6 +613,22 @@ export default function App() {
                 </div>
                 <div className="row" style={{ marginTop: 12 }}>
                   <button style={{ ...styles.btn, background: "#10b981" }} onClick={() => setMenu("playing")}>Play</button>
+                  <button style={{ ...styles.btn, background: "#0f172a" }} onClick={() => setMenu("home")}>Back</button>
+                </div>
+              </>
+            )}
+            {menu === "changelog" && (
+              <>
+                <h2 style={{ marginTop: 0 }}>Change Log</h2>
+                <div style={{ color: "#5b6b7a", fontSize: 14 }}>
+                  <ul>
+                    <li>Parts on gray rock are now visible</li>
+                    <li>Sticky Sand slows explorers more</li>
+                    <li>Character selector with raccoons and pandas</li>
+                    <li>Version number displayed in game</li>
+                  </ul>
+                </div>
+                <div className="row" style={{ marginTop: 12 }}>
                   <button style={{ ...styles.btn, background: "#0f172a" }} onClick={() => setMenu("home")}>Back</button>
                 </div>
               </>
