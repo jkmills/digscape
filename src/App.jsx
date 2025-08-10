@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
-// Raccoon Rocket — v0.4 (React canvas)
-// - Bottom-level parts visible on gray rock
-// - Sticky Sand slows more
-// - Character selection and changelog
+// Raccoon Rocket — v0.5 (React canvas)
+// - Parts on bedrock show when exposed
+// - Sandstorms move only sand
+// - Cuter Panda and Red Panda characters
 
 const randi = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 const choice = arr => arr[Math.floor(Math.random() * arr.length)];
@@ -11,7 +11,7 @@ const choice = arr => arr[Math.floor(Math.random() * arr.length)];
 const GRID_W = 18;
 const GRID_H = 14;
 const TOTAL = GRID_W * GRID_H;
-const VERSION = "v0.4";
+const VERSION = "v0.5";
 
 const PieceIDs = ["nose", "window", "body", "engine", "fin-left", "fin-right"];
 const BonusIDs = ["speed", "score", "radar", "time"];
@@ -72,13 +72,24 @@ function RaccoonIcon({ size = 26 }) {
 function PandaIcon({ size = 26, red = false }) {
   const face = red ? "#f97316" : "#fff";
   const ear = red ? "#c2410c" : "#111";
+  const patch = red ? "#fb923c" : "#111";
+  const blush = red ? "#fdba74" : "#fca5a5";
   return (
     <svg width={size} height={size} viewBox="0 0 128 128" aria-label={red ? "red panda" : "panda"}>
       <circle cx="64" cy="64" r="60" fill={face} stroke="#a8a29e" strokeWidth="4" />
-      <circle cx="44" cy="50" r="20" fill={ear} />
-      <circle cx="84" cy="50" r="20" fill={ear} />
-      <circle cx="64" cy="80" r="30" fill={face} stroke="#a8a29e" strokeWidth="4" />
-      <circle cx="64" cy="88" r="12" fill={ear} />
+      <circle cx="40" cy="44" r="18" fill={ear} />
+      <circle cx="88" cy="44" r="18" fill={ear} />
+      <circle cx="64" cy="80" r="36" fill={face} stroke="#a8a29e" strokeWidth="4" />
+      <ellipse cx="52" cy="72" rx="14" ry="16" fill={patch} />
+      <ellipse cx="76" cy="72" rx="14" ry="16" fill={patch} />
+      <circle cx="52" cy="72" r="6" fill="#fff" />
+      <circle cx="76" cy="72" r="6" fill="#fff" />
+      <circle cx="52" cy="72" r="3" fill="#111" />
+      <circle cx="76" cy="72" r="3" fill="#111" />
+      <circle cx="64" cy="90" r="6" fill={ear} />
+      <path d="M58 95 Q64 101 70 95" stroke={ear} strokeWidth="4" fill="none" strokeLinecap="round" />
+      <circle cx="44" cy="94" r="5" fill={blush} />
+      <circle cx="84" cy="94" r="5" fill={blush} />
     </svg>
   );
 }
@@ -278,10 +289,15 @@ export default function App() {
       playEffect("sandstorm", "SANDSTORM!", 1800);
       setCells(prev => {
         const copy = [...prev];
-        for (let i = 0; i < 18; i++) {
+        let applied = 0;
+        let tries = 0;
+        while (applied < 18 && tries < 500) {
           const idx = randi(0, TOTAL - 1);
+          tries++;
           if (copy[idx].type === "water") continue; // water unaffected
+          if (copy[idx].payload?.kind === "piece") continue; // don't disturb rocket parts
           copy[idx] = { ...copy[idx], seen: false, layers: Math.min(3, (copy[idx].layers || 0) + 1) };
+          applied++;
         }
         return copy;
       });
@@ -321,6 +337,11 @@ export default function App() {
       }
       if (cell.payload) {
         const pay = cell.payload;
+        if (pay.kind === "piece" && (cell.layers ?? 0) === 0 && !c.seen) {
+          // Reveal part on newly exposed bedrock without collecting
+          copy[idx] = cell;
+          return copy;
+        }
         cell.payload = null;
         copy[idx] = cell;
         if (pay.kind === "piece") {
